@@ -2,10 +2,19 @@ package dd
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
+)
+
+const (
+	UA           = "Mozilla/5.0 (Linux; Android 9; LIO-AN00 Build/LIO-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 xzone/9.47.0 station_id/null"
+	ApiVersion   = "9.49.2"
+	AppVersion   = "2.82.0"
+	BuildVersion = "2.82.1"
+	AppClientId  = "4"
 )
 
 type DingdongSession struct {
@@ -18,11 +27,19 @@ type DingdongSession struct {
 	PackageOrder PackageOrder `json:"package_order"`
 	PayType      int          `json:"pay_type"`
 	CartMode     int          `json:"cart_mode"`
+	UserId       string       `json:"user_id"`
+
+	missTimePoint []int64 `json:"reserve_time_data"`
 }
 
-func (s *DingdongSession) InitSession(cookie string, barkId string) error {
+func NewDingdongSession() *DingdongSession {
+	return &DingdongSession{
+		Client: &http.Client{},
+	}
+}
+
+func (s *DingdongSession) InitSession(cookie string, barkId string, fastMode int) error {
 	fmt.Println("########## 初始化 ##########")
-	s.Client = &http.Client{}
 	s.Cookie = cookie
 	s.BarkId = barkId
 	err, addrList := s.GetAddress()
@@ -31,6 +48,27 @@ func (s *DingdongSession) InitSession(cookie string, barkId string) error {
 	}
 	if len(addrList) == 0 {
 		return errors.New("未查询到有效收货地址，请前往app添加或检查cookie是否正确！")
+	}
+
+	msgs := map[int]string{
+		1: "结算所有有效商品（不包括换购）",
+		2: "结算所有勾选商品（包括换购)",
+	}
+
+	if fastMode > 0 && fastMode < 3 {
+		s.Address = addrList[0]
+		s.PayType = 2
+		s.CartMode = fastMode
+		modeStr := msgs[fastMode]
+		addr := addrList[0]
+		fmt.Println()
+		fmt.Println("##################################")
+		fmt.Printf("收货地址: %s %s %s %s\n", addr.Name, addr.AddrDetail, addr.UserName, addr.Mobile)
+		fmt.Printf("支付方式: %s\n", "支付宝")
+		fmt.Printf("结算模式: %s\n", modeStr)
+		fmt.Println("##################################")
+		fmt.Println()
+		return nil
 	}
 	fmt.Println("########## 选择收货地址 ##########")
 	for i, addr := range addrList {
@@ -85,4 +123,12 @@ func (s *DingdongSession) InitSession(cookie string, barkId string) error {
 		}
 	}
 	return nil
+}
+
+func ToJson(data interface{}) string {
+	a, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	return string(a)
 }

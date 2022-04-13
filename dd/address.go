@@ -3,6 +3,7 @@ package dd
 import (
 	"errors"
 	"fmt"
+	"github.com/spf13/cast"
 	"github.com/tidwall/gjson"
 	"io/ioutil"
 	"net/http"
@@ -40,10 +41,10 @@ func parseAddress(addressMap gjson.Result) (error, Address) {
 func (s *DingdongSession) GetAddress() (error, []Address) {
 	Url, _ := url.Parse("https://sunquan.api.ddxq.mobi/api/v1/user/address/")
 	params := url.Values{}
-	params.Set("api_version", "9.49.0")
-	params.Set("app_version", "2.81.0")
+	params.Set("api_version", ApiVersion)
+	params.Set("app_version", AppVersion)
 	params.Set("applet_source", "")
-	params.Set("app_client_id", "3")
+	params.Set("app_client_id", cast.ToString(AppClientId))
 	params.Set("h5_source", "")
 	params.Set("sharer_uid", "")
 	params.Set("s_id", "")

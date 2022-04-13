@@ -8,7 +8,11 @@ import (
 )
 
 func (s *DingdongSession) PushSuccess() error {
-	urlPath := fmt.Sprintf("https://api.day.app/%s/抢到菜了，请速去支付?sound=alert", s.BarkId)
+	if s.BarkId == "" {
+		fmt.Println("抢购成功，请前往app付款！\r")
+		return nil
+	}
+	urlPath := fmt.Sprintf("https://api.day.app/%s/cookie:%s抢到菜了，请速去支付?sound=alarm", s.BarkId, s.Cookie)
 	req, _ := http.NewRequest("GET", urlPath, nil)
 	resp, err := s.Client.Do(req)
 	if err != nil {

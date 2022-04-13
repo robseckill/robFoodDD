@@ -2,7 +2,10 @@ module robFoodDD
 
 go 1.17
 
-require github.com/tidwall/gjson v1.14.0
+require (
+	github.com/spf13/cast v1.3.1
+	github.com/tidwall/gjson v1.14.0
+)
 
 require (
 	github.com/tidwall/match v1.1.1 // indirect

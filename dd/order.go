@@ -4,16 +4,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/spf13/cast"
 	"github.com/tidwall/gjson"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 type Order struct {
 	Products []Product `json:"products"`
 	Price    string    `json:"price"`
+	TicketId string    `json:"ticket"`
 }
 
 type Package struct {
@@ -30,17 +33,24 @@ type Package struct {
 type PaymentOrder struct {
 	ReservedTimeStart    int    `json:"reserved_time_start"`
 	ReservedTimeEnd      int    `json:"reserved_time_end"`
+	Price                string `json:"price"`
 	FreightDiscountMoney string `json:"freight_discount_money"`
 	FreightMoney         string `json:"freight_money"`
 	OrderFreight         string `json:"order_freight"`
-	AddressId            string `json:"address_id"`
-	UsedPointNum         int    `json:"used_point_num"`
 	ParentOrderSign      string `json:"parent_order_sign"`
+	ProductType          int    `json:"product_type"`
+	AddressId            string `json:"address_id"`
+	FormId               string `json:"form_id"`
+	ReceiptWithoutSku    string `json:"receipt_without_sku"`
 	PayType              int    `json:"pay_type"`
+	UserTicketId         string `json:"user_ticket_id"`
+	VipMoney             string `json:"vip_money"`
+	VipBuyUserTicketId   string `json:"vip_buy_user_ticket_id"`
+	CouponsMoney         string `json:"coupons_money"`
+	CouponsId            string `json:"coupons_id"`
+	UsedPointNum         int    `json:"used_point_num"`
 	OrderType            int    `json:"order_type"`
 	IsUseBalance         int    `json:"is_use_balance"`
-	ReceiptWithoutSku    string `json:"receipt_without_sku"`
-	Price                string `json:"price"`
 }
 
 type PackageOrder struct {
@@ -86,49 +96,58 @@ func (s *DingdongSession) CheckOrder() error {
 	packagesStr := string(packagesJson)
 
 	data := url.Values{}
-	data.Add("station_id", s.Address.StationId)
-	data.Add("city_number", s.Address.CityNumber)
-	data.Add("api_version", "9.49.0")
-	data.Add("app_version", "2.81.0")
-	data.Add("applet_source", "")
-	data.Add("app_client_id", "3")
-	data.Add("h5_source", "")
-	data.Add("sharer_uid", "")
-	data.Add("s_id", "")
-	data.Add("openid", "")
-	data.Add("user_ticket_id", "default")
-	data.Add("freight_ticket_id", "default")
-	data.Add("is_use_point", "0")
-	data.Add("is_use_balance", "0")
-	data.Add("is_buy_vip", "0")
-	data.Add("coupons_id", "")
-	data.Add("is_buy_coupons", "0")
-	data.Add("packages", packagesStr)
-	data.Add("check_order_type", "0")
-	data.Add("is_support_merge_payment", "1")
-	data.Add("showData", "true")
-	data.Add("showMsg", "false")
+	for k, v := range map[string]string{
+		"uid":                      s.UserId,
+		"longitude":                cast.ToString(s.Address.Longitude),
+		"latitude":                 cast.ToString(s.Address.Latitude),
+		"station_id":               s.Address.StationId,
+		"city_number":              s.Address.CityNumber,
+		"api_version":              ApiVersion,
+		"app_version":              AppVersion,
+		"applet_source":            "",
+		"app_client_id":            "3",
+		"h5_source":                "",
+		"wx":                       "1",
+		"address_id":               s.Address.Id,
+		"user_ticket_id":           "default",
+		"freight_ticket_id":        "default",
+		"is_use_point":             "0",
+		"is_use_balance":           "0",
+		"is_buy_vip":               "0",
+		"coupons_id":               "",
+		"is_buy_coupons":           "0",
+		"packages":                 packagesStr,
+		"check_order_type":         "0",
+		"is_support_merge_payment": "1",
+		"showData":                 "true",
+		"showMsg":                  "false",
+	} {
+		data.Set(k, v)
+	}
 
 	req, _ := http.NewRequest("POST", urlPath, strings.NewReader(data.Encode()))
-	req.Header.Set("Host", "maicai.api.ddxq.mobi")
-	req.Header.Set("ddmc-city-number", s.Address.CityNumber)
-	req.Header.Set("user-agent", "Mozilla/5.0 (Linux; Android 9; LIO-AN00 Build/LIO-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 xzone/9.47.0 station_id/null")
-	req.Header.Set("accept", "application/json, text/plain, */*")
-	req.Header.Set("ddmc-os-version", "undefined")
-	req.Header.Set("ddmc-channel", "undefined")
-	req.Header.Set("ddmc-build-version", "2.81.0")
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.Header.Set("ddmc-app-client-id", "3")
-	req.Header.Set("ddmc-api-version", "9.49.0")
-	req.Header.Set("ddmc-station-id", s.Address.StationId)
-	req.Header.Set("origin", "https://wx.m.ddxq.mobi")
-	req.Header.Set("x-requested-with", "com.yaya.zone")
-	req.Header.Set("sec-fetch-site", "same-site")
-	req.Header.Set("sec-fetch-mode", "cors")
-	req.Header.Set("sec-fetch-dest", "empty")
-	req.Header.Set("referer", "https://wx.m.ddxq.mobi/")
-	req.Header.Set("accept-language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
-	req.Header.Set("cookie", s.Cookie)
+	req.Header.Add("Host", "maicai.api.ddxq.mobi")
+	req.Header.Add("Referer", "https://wx.m.ddxq.mobi/")
+	req.Header.Add("Cookie", s.Cookie)
+	req.Header.Add("User-Agent", UA)
+	req.Header.Add("ddmc-city-number", s.Address.CityNumber)
+	req.Header.Add("ddmc-api-version", ApiVersion)
+	req.Header.Add("Origin", "https://wx.m.ddxq.mobi")
+	req.Header.Add("ddmc-build-version", AppVersion)
+	req.Header.Add("ddmc-longitude", cast.ToString(s.Address.Longitude))
+	req.Header.Add("ddmc-latitude", cast.ToString(s.Address.Latitude))
+	req.Header.Add("ddmc-app-client-id", "3")
+	req.Header.Add("Connection", "keep-alive")
+	req.Header.Add("ddmc-uid", s.UserId)
+	req.Header.Add("Accept-Language", "zh-CN,zh-Hans;q=0.9")
+	req.Header.Add("ddmc-channel", "undefined")
+	req.Header.Add("ddmc-device-id", "")
+	req.Header.Add("Accept", "application/json, text/plain, */*")
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("ddmc-station-id", s.Address.StationId)
+	req.Header.Add("ddmc-ip", "")
+	req.Header.Add("ddmc-os-version", "undefined")
+
 	resp, err := s.Client.Do(req)
 	if err != nil {
 		return err
@@ -143,11 +162,27 @@ func (s *DingdongSession) CheckOrder() error {
 		switch result.Get("code").Num {
 		case 0:
 			s.Order.Price = result.Get("data.order.total_money").Str
+			if result.Get("data.order.total_money").Str !=
+				result.Get("data.order.goods_real_money").Str {
+				s.Order.TicketId = result.Get("data.order.default_coupon._id").Str
+			}
 			return nil
 		case -3000:
 			return BusyErr
+		case -3001:
+			return RateLimit
 		case -3100:
 			return DataLoadErr
+		case 5010:
+			s.Order.Price = result.Get("data.order.total_money").Str
+			if result.Get("data.order.total_money").Str !=
+				result.Get("data.order.goods_real_money").Str {
+				s.Order.TicketId = result.Get("data.order.default_coupon._id").Str
+			}
+			fmt.Println("【5010】========xxxxxxxx")
+			return nil
+		case 5014:
+			return errors.New("【5014】" + result.Get("msg").Str)
 		default:
 			return errors.New(string(body))
 		}
@@ -186,7 +221,13 @@ func (s *DingdongSession) GeneratePackageOrder() {
 		AddressId:            s.Address.Id,
 		UsedPointNum:         0,
 		ParentOrderSign:      s.Cart.ParentOrderSign,
+		ProductType:          1,
 		PayType:              s.PayType,
+		UserTicketId:         s.Order.TicketId, // 不使用优惠券
+		VipMoney:             "",
+		VipBuyUserTicketId:   "",
+		CouponsMoney:         "",
+		CouponsId:            "",
 		OrderType:            1,
 		IsUseBalance:         0,
 		ReceiptWithoutSku:    "1",
@@ -208,6 +249,7 @@ func (s *DingdongSession) UpdatePackageOrder(reserveTime ReserveTime) {
 		p.ReservedTimeStart = reserveTime.StartTimestamp
 		p.ReservedTimeEnd = reserveTime.EndTimestamp
 	}
+	fmt.Println("可用时间为：" + reserveTime.SelectMsg)
 }
 
 func (s *DingdongSession) AddNewOrder() error {
@@ -217,41 +259,44 @@ func (s *DingdongSession) AddNewOrder() error {
 	packageOrderStr := string(packageOrderJson)
 
 	data := url.Values{}
-	data.Add("uid", "")
-	data.Add("station_id", s.Address.StationId)
-	data.Add("city_number", s.Address.CityNumber)
-	data.Add("api_version", "9.49.0")
-	data.Add("app_version", "2.81.0")
-	data.Add("applet_source", "")
-	data.Add("app_client_id", "3")
-	data.Add("h5_source", "")
-	data.Add("sharer_uid", "")
-	data.Add("s_id", "")
-	data.Add("openid", "")
-	data.Add("package_order", packageOrderStr)
-	data.Add("showData", "true")
-	data.Add("showMsg", "false")
-	data.Add("ab_config", "{\"key_onion\":\"C\"}")
+	for k, v := range map[string]string{
+		"uid":           s.UserId,
+		"longitude":     cast.ToString(s.Address.Longitude),
+		"latitude":      cast.ToString(s.Address.Latitude),
+		"station_id":    s.Address.StationId,
+		"city_number":   s.Address.CityNumber,
+		"api_version":   ApiVersion,
+		"app_version":   AppVersion,
+		"applet_source": "",
+		"app_client_id": AppClientId,
+		"h5_source":     "",
+		"package_order": packageOrderStr,
+		"showMsg":       "false",
+		"showData":      "true",
+	} {
+		data.Set(k, v)
+	}
+
 	req, _ := http.NewRequest("POST", urlPath, strings.NewReader(data.Encode()))
-	req.Header.Set("Host", "maicai.api.ddxq.mobi")
-	req.Header.Set("ddmc-city-number", s.Address.CityNumber)
-	req.Header.Set("user-agent", fmt.Sprintf("Mozilla/5.0 (Linux; Android 9; LIO-AN00 Build/LIO-AN00; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/92.0.4515.131 Mobile Safari/537.36 xzone/9.47.0 station_id/%s", s.Address.StationId))
-	req.Header.Set("accept", "application/json, text/plain, */*")
-	req.Header.Set("ddmc-os-version", "undefined")
-	req.Header.Set("ddmc-channel", "undefined")
-	req.Header.Set("ddmc-build-version", "2.81.0")
-	req.Header.Set("content-type", "application/x-www-form-urlencoded")
-	req.Header.Set("ddmc-app-client-id", "3")
-	req.Header.Set("ddmc-api-version", "9.49.0")
-	req.Header.Set("ddmc-station-id", s.Address.StationId)
-	req.Header.Set("origin", "https://wx.m.ddxq.mobi")
-	req.Header.Set("x-requested-with", "com.yaya.zone")
-	req.Header.Set("sec-fetch-site", "same-site")
-	req.Header.Set("sec-fetch-mode", "cors")
-	req.Header.Set("sec-fetch-dest", "empty")
-	req.Header.Set("referer", "https://wx.m.ddxq.mobi/")
-	req.Header.Set("accept-language", "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7")
-	req.Header.Set("cookie", s.Cookie)
+
+	req.Header.Add("Host", "maicai.api.ddxq.mobi")
+	req.Header.Add("Connection", "keep-alive")
+	req.Header.Add("content-type", "application/x-www-form-urlencoded")
+	req.Header.Add("ddmc-city-number", s.Address.CityNumber)
+	req.Header.Add("ddmc-build-version", AppVersion)
+	req.Header.Add("ddmc-station-id", s.Address.StationId)
+	req.Header.Add("ddmc-channel", "applet")
+	req.Header.Add("ddmc-os-version", "[object Undefined]")
+	req.Header.Add("ddmc-app-client-id", "3")
+	req.Header.Add("Cookie", s.Cookie)
+	req.Header.Add("ddmc-ip", "")
+	req.Header.Add("ddmc-longitude", cast.ToString(s.Address.Longitude))
+	req.Header.Add("ddmc-latitude", cast.ToString(s.Address.Latitude))
+	req.Header.Add("ddmc-api-version", ApiVersion)
+	req.Header.Add("ddmc-uid", s.UserId)
+	req.Header.Add("User-Agent", UA)
+	req.Header.Add("Referer", "https://servicewechat.com/wx1111111111111/422/page-frame.html")
+
 	resp, err := s.Client.Do(req)
 	if err != nil {
 		return err
@@ -274,10 +319,22 @@ func (s *DingdongSession) AddNewOrder() error {
 			s.PackageOrder = result.Data.PackageOrder
 			return OOSErr
 		case 5003:
+			fmt.Println(string(body))
 			return ProdInfoErr
 		case 5004:
 			fmt.Println(result.Msg)
+			s.missTimePoint = append(s.missTimePoint, cast.ToInt64(s.PackageOrder.Packages[0].ReservedTimeStart))
+			fmt.Printf("时间：%s 已过期\n", time.Unix(cast.ToInt64(s.PackageOrder.Packages[0].ReservedTimeStart), 0).Format("2006-01-02 15:04:05"))
 			return TimeExpireErr
+		case 5014:
+			fmt.Println(result.Msg)
+			return NotStart
+		case -3001:
+			fmt.Println(result.Msg)
+			return RateLimit
+		case -3000:
+			fmt.Println(result.Msg)
+			return BusyErr
 		default:
 			return errors.New(string(body))
 		}
